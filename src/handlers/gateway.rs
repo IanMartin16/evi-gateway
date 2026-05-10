@@ -44,10 +44,11 @@ pub async fn proxy(
     body: web::Json<ProxyRequest>,
     config: web::Data<Config>,
 ) -> HttpResponse {
-    let request_id = Uuid::new_v4().to_string();
+    let request_id = get_or_create_request_id(&req);
 
     let routes = config.registered_routes();
     let clients = config.api_clients();
+    let start = std::time::Instant::now();
 
     let route = match find_route(&routes, &body.route) {
         Some(route) => route,
@@ -108,7 +109,20 @@ pub async fn proxy(
                 .await
                 .unwrap_or_else(|_| json!({ "message": "Upstream returned non-JSON response" }));
 
-            HttpResponse::Ok().json(ProxyResponse {
+            let latency_ms = start.elapsed().as_millis();
+
+            log::info!(
+                "proxy_success request_id={} route={} service={} status={} latency_ms={}",
+                request_id,
+                route.route,
+                route.service_name,
+                status,
+                latency_ms
+            );    
+
+            HttpResponse::Ok()
+            .insert_header(("X-Request-ID", request_id.clone()))
+            .json(ProxyResponse {
                 request_id,
                 route: route.route.clone(),
                 status,
@@ -150,4 +164,12 @@ fn has_required_scopes(client: &ApiClient, required_scopes: &[String]) -> bool {
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(get_routes);
     cfg.service(proxy);
+}
+
+fn get_or_create_request_id(req: &HttpRequest) -> String {
+    req.headers()
+        .get("X-Request-ID")
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| Uuid::new_v4().to_string())
 }

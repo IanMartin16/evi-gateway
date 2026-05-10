@@ -11,6 +11,7 @@ pub struct Config {
     pub mcpone_url: String,
     pub default_timeout_ms: u64,
     pub api_keys_raw: String,
+    pub mcpone_orchestrate_path: String,
 }
 
 impl Config {
@@ -23,6 +24,8 @@ impl Config {
                 .unwrap_or(8080),
             app_name: "evi-gate".to_string(),
             version: "0.1.0".to_string(),
+            mcpone_orchestrate_path: env::var("MCPONE_ORCHESTRATE_PATH")
+                .unwrap_or_else(|_| "/orchestrate".to_string()),
             mcpone_url: env::var("MCPONE_URL")
                 .unwrap_or_else(|_| "http://localhost:8000".to_string()),
             default_timeout_ms: env::var("DEFAULT_TIMEOUT_MS")
@@ -38,7 +41,7 @@ impl Config {
         vec![RouteConfig {
             service_name: "mcpone".to_string(),
             route: "mcpone.execute".to_string(),
-            target_url: format!("{}/api/execute", self.mcpone_url.trim_end_matches('/')),
+            target_url: format!("{}{}", self.mcpone_url.trim_end_matches('/'), self.mcpone_orchestrate_path),
             required_scopes: vec!["mcpone.execute".to_string()],
             auth_required: true,
             timeout_ms: self.default_timeout_ms,

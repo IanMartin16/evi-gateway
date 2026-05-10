@@ -55,6 +55,10 @@ async fn main() -> std::io::Result<()> {
                 header::AUTHORIZATION,
                 header::CONTENT_TYPE,
                 header::HeaderName::from_static("x-api-key"),
+                header::HeaderName::from_static("x-request-id"),
+            ])
+            .expose_headers(vec![
+                header::HeaderName::from_static("x-request-id"),
             ])
             .max_age(3600);
 
