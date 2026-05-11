@@ -95,10 +95,17 @@ pub async fn proxy(
         }
     };
 
-    let upstream_result = http_client
-        .post(&route.target_url)
+    let request_builder = match route.method.as_str() {
+        "GET" => http_client.get(&route.target_url),
+        "POST" => http_client.post(&route.target_url).json(&upstream_payload),
+        _ => {
+            return AppError::BadRequest(format!("Unsopported method: {}", route.method))
+                .to_response(Some(request_id));
+        }
+    };
+
+    let upstream_result = request_builder
         .header("X-Request-ID", request_id.clone())
-        .json(&upstream_payload)
         .send()
         .await;
 

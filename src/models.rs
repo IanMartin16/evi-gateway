@@ -8,6 +8,7 @@ use utoipa::ToSchema;
 pub struct RouteConfig {
     pub service_name: String,
     pub route: String,
+    pub method: String,
     pub target_url: String,
     pub required_scopes: Vec<String>,
     pub auth_required: bool,

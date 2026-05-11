@@ -11,6 +11,10 @@ pub struct Config {
     pub mcpone_url: String,
     pub default_timeout_ms: u64,
     pub api_keys_raw: String,
+    pub mcpone_health_path: String,
+    pub mcpone_meta_path: String,
+    pub mcpone_registry_path: String,
+    pub mcpone_providers_path: String,
     pub mcpone_orchestrate_path: String,
 }
 
@@ -24,6 +28,14 @@ impl Config {
                 .unwrap_or(8080),
             app_name: "evi-gate".to_string(),
             version: "0.1.0".to_string(),
+            mcpone_health_path: env::var("MCPONE_HEALTH_PATH")
+                .unwrap_or_else(|_| "/health".to_string()),
+            mcpone_meta_path: env::var("MCPONE_META_PATH")
+                .unwrap_or_else(|_| "/meta".to_string()),
+            mcpone_registry_path: env::var("MCPONE_REGISTRY_PATH")
+                .unwrap_or_else(|_| "/registry".to_string()),
+            mcpone_providers_path: env::var("MCPONE_PROVIDERS_PATH")
+                .unwrap_or_else(|_| "/providers".to_string()),
             mcpone_orchestrate_path: env::var("MCPONE_ORCHESTRATE_PATH")
                 .unwrap_or_else(|_| "/orchestrate".to_string()),
             mcpone_url: env::var("MCPONE_URL")
@@ -33,18 +45,57 @@ impl Config {
                 .parse()
                 .unwrap_or(5000),
             api_keys_raw: env::var("EVIGATE_API_KEYS")
-                .unwrap_or_else(|_| "nexus:nexus_dev_key:mcpone.execute,mcpone.read".to_string()),
+                .unwrap_or_else(|_| "nexus:nexus_dev_key:mcpone.execute,mcpone.read,mcpone.health,mcpone.providers.read,mcpone.meta,mcpone.registry.read".to_string()),
         }
     }
 
     pub fn registered_routes(&self) -> Vec<RouteConfig> {
+        let base_url = self.mcpone_url.trim_end_matches('/');
+
         vec![RouteConfig {
-            service_name: "mcpone".to_string(),
-            route: "mcpone.execute".to_string(),
-            target_url: format!("{}{}", self.mcpone_url.trim_end_matches('/'), self.mcpone_orchestrate_path),
-            required_scopes: vec!["mcpone.execute".to_string()],
-            auth_required: true,
-            timeout_ms: self.default_timeout_ms,
+                service_name: "mcpone".to_string(),
+                route: "mcpone.health".to_string(),
+                method: "GET".to_string(), 
+                target_url: format!("{}{}", base_url, self.mcpone_health_path),
+                required_scopes: vec!["mcpone.health".to_string()],
+                auth_required: true,
+                timeout_ms: self.default_timeout_ms,
+            },
+            RouteConfig {
+                service_name: "mcpone".to_string(),
+                route: "mcpone.meta".to_string(),
+                method: "GET".to_string(), 
+                target_url: format!("{}{}", base_url, self.mcpone_meta_path),
+                required_scopes: vec!["mcpone.meta".to_string()],
+                auth_required: true,
+                timeout_ms: self.default_timeout_ms,
+            },
+            RouteConfig {
+                service_name: "mcpone".to_string(),
+                route: "mcpone.registry".to_string(),
+                method: "GET".to_string(), 
+                target_url: format!("{}{}", base_url, self.mcpone_registry_path),
+                required_scopes: vec!["mcpone.registry.read".to_string()],
+                auth_required: true,
+                timeout_ms: self.default_timeout_ms,
+            },
+            RouteConfig {
+                service_name: "mcpone".to_string(),
+                route: "mcpone.providers".to_string(),
+                method: "GET".to_string(), 
+                target_url: format!("{}{}", base_url, self.mcpone_providers_path),
+                required_scopes: vec!["mcpone.providers.read".to_string()],
+                auth_required: true,
+                timeout_ms: self.default_timeout_ms,
+            },
+            RouteConfig {
+                service_name: "mcpone".to_string(),
+                route: "mcpone.execute".to_string(),
+                method: "POST".to_string(), 
+                target_url: format!("{}{}", base_url, self.mcpone_orchestrate_path),
+                required_scopes: vec!["mcpone.execute".to_string()],
+                auth_required: true,
+                timeout_ms: self.default_timeout_ms,
         }]
     }
 
