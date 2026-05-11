@@ -45,6 +45,8 @@ pub async fn proxy(
     config: web::Data<Config>,
 ) -> HttpResponse {
     let request_id = get_or_create_request_id(&req);
+    let mcpone_request_id = extract_payload_request_id(&body.payload);
+    let upstream_payload = ensure_payload_request_id(&body.payload, &request_id);
 
     let routes = config.registered_routes();
     let clients = config.api_clients();
@@ -96,7 +98,7 @@ pub async fn proxy(
     let upstream_result = http_client
         .post(&route.target_url)
         .header("X-Request-ID", request_id.clone())
-        .json(&body.payload)
+        .json(&upstream_payload)
         .send()
         .await;
 
@@ -112,13 +114,14 @@ pub async fn proxy(
             let latency_ms = start.elapsed().as_millis();
 
             log::info!(
-                "proxy_success request_id={} route={} service={} status={} latency_ms={}",
+                "proxy_success gateway_request_id={} upstream_request_id={} route={} service={} status={} latency_ms={}",
                 request_id,
+                mcpone_request_id.clone().unwrap_or_else(|| request_id.clone()),
                 route.route,
                 route.service_name,
                 status,
                 latency_ms
-            );    
+            );   
 
             HttpResponse::Ok()
             .insert_header(("X-Request-ID", request_id.clone()))
@@ -172,4 +175,29 @@ fn get_or_create_request_id(req: &HttpRequest) -> String {
         .and_then(|value| value.to_str().ok())
         .map(|value| value.to_string())
         .unwrap_or_else(|| Uuid::new_v4().to_string())
+}
+
+fn extract_payload_request_id(payload: &serde_json::Value) -> Option<String> {
+    payload
+        .get("request_id")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
+fn ensure_payload_request_id(
+    payload: &serde_json::Value,
+    request_id: &str,
+) -> serde_json::Value {
+    let mut enriched_payload = payload.clone();
+
+    if enriched_payload.get("request_id").is_none() {
+        if let Some(obj) = enriched_payload.as_object_mut() {
+            obj.insert(
+                "request_id".to_string(),
+                serde_json::Value::String(request_id.to_string()),
+            );
+        }
+    }
+
+    enriched_payload
 }
