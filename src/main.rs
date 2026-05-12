@@ -27,7 +27,7 @@ mod routes;
     )),
     tags(
         (
-            name = "evi-gate",
+            name = "evi-gateway",
             description = "Secure API Gateway for the IO Module. Provides route registry, API key validation, scope validation, controlled proxying, request tracing, and standardized gateway responses."
         )
     )
@@ -43,7 +43,7 @@ async fn main() -> std::io::Result<()> {
     let app_config = config::Config::from_env();
     let bind_addr = format!("{}:{}", app_config.host, app_config.port);
 
-    log::info!("Starting evi-gate on {}", bind_addr);
+    log::info!("Starting evi-gateway on {}", bind_addr);
     log::info!("Swagger UI available at http://{}/swagger-ui/", bind_addr);
     log::info!("OpenAPI JSON available at http://{}/api-docs/openapi.json", bind_addr);
 

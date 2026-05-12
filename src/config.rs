@@ -31,11 +31,11 @@ impl Config {
             mcpone_health_path: env::var("MCPONE_HEALTH_PATH")
                 .unwrap_or_else(|_| "/health".to_string()),
             mcpone_meta_path: env::var("MCPONE_META_PATH")
-                .unwrap_or_else(|_| "/meta".to_string()),
+                .unwrap_or_else(|_| "/meta/reason-codes".to_string()),  
             mcpone_registry_path: env::var("MCPONE_REGISTRY_PATH")
-                .unwrap_or_else(|_| "/registry".to_string()),
+                .unwrap_or_else(|_| "/registry/modules".to_string()),
             mcpone_providers_path: env::var("MCPONE_PROVIDERS_PATH")
-                .unwrap_or_else(|_| "/providers".to_string()),
+                .unwrap_or_else(|_| "/providers/active".to_string()),
             mcpone_orchestrate_path: env::var("MCPONE_ORCHESTRATE_PATH")
                 .unwrap_or_else(|_| "/orchestrate".to_string()),
             mcpone_url: env::var("MCPONE_URL")
@@ -45,7 +45,7 @@ impl Config {
                 .parse()
                 .unwrap_or(5000),
             api_keys_raw: env::var("EVIGATE_API_KEYS")
-                .unwrap_or_else(|_| "nexus:nexus_dev_key:mcpone.execute,mcpone.read,mcpone.health,mcpone.providers.read,mcpone.meta,mcpone.registry.read".to_string()),
+                .unwrap_or_else(|_| "nexus:nexus_dev_key:mcpone.execute,mcpone.read,mcpone.health,mcpone.providers.read,mcpone.meta,mcpone.registry.read,mcpone.meta.read,mcpone.metrics.read".to_string()),
         }
     }
 
@@ -67,6 +67,42 @@ impl Config {
                 method: "GET".to_string(), 
                 target_url: format!("{}{}", base_url, self.mcpone_meta_path),
                 required_scopes: vec!["mcpone.meta".to_string()],
+                auth_required: true,
+                timeout_ms: self.default_timeout_ms,
+            },
+            RouteConfig {
+                service_name: "mcpone".to_string(),
+                route: "mcpone.reason_codes".to_string(),
+                method: "GET".to_string(),
+                target_url: format!("{}/meta/reason-codes", base_url),
+                required_scopes: vec!["mcpone.meta.read".to_string()],
+                auth_required: true,
+                timeout_ms: self.default_timeout_ms,
+            },
+            RouteConfig {
+                service_name: "mcpone".to_string(),
+                route: "mcpone.recent_resolutions".to_string(),
+                method: "GET".to_string(),
+                target_url: format!("{}/meta/recent-resolutions", base_url),
+                required_scopes: vec!["mcpone.meta.read".to_string()],
+                auth_required: true,
+                timeout_ms: self.default_timeout_ms,
+            },
+            RouteConfig {
+                service_name: "mcpone".to_string(),
+                route: "mcpone.meta_metrics".to_string(),
+                method: "GET".to_string(),
+                target_url: format!("{}/meta/metrics", base_url),
+                required_scopes: vec!["mcpone.meta.read".to_string()],
+                auth_required: true,
+                timeout_ms: self.default_timeout_ms,
+            },
+            RouteConfig {
+                service_name: "mcpone".to_string(),
+                route: "mcpone.metrics_summary".to_string(),
+                method: "GET".to_string(),
+                target_url: format!("{}/metrics/summary", base_url),
+                required_scopes: vec!["mcpone.metrics.read".to_string()],
                 auth_required: true,
                 timeout_ms: self.default_timeout_ms,
             },
