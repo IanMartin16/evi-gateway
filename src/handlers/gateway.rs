@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
 use reqwest::Client;
@@ -44,17 +44,27 @@ pub async fn proxy(
     body: web::Json<ProxyRequest>,
     config: web::Data<Config>,
 ) -> HttpResponse {
+    let start = std::time::Instant::now();
     let request_id = get_or_create_request_id(&req);
+    let mut client_id = "anonymous".to_string();
     let mcpone_request_id = extract_payload_request_id(&body.payload);
+    let upstream_request_id = mcpone_request_id
+        .clone()
+        .unwrap_or_else(|| request_id.clone());
     let upstream_payload = ensure_payload_request_id(&body.payload, &request_id);
 
     let routes = config.registered_routes();
     let clients = config.api_clients();
-    let start = std::time::Instant::now();
 
     let route = match find_route(&routes, &body.route) {
         Some(route) => route,
         None => {
+            log::warn!(
+                "proxy_rejected request_id={} client_id={} route={} reason=route_not_found result=error",
+                request_id,
+                client_id,
+                body.route
+            );
             return AppError::RouteNotFound(format!("Route not registered: {}", body.route))
                 .to_response(Some(request_id));
         }
@@ -68,6 +78,11 @@ pub async fn proxy(
                     .to_response(Some(request_id));
             }
         };
+        log::warn!(
+                "proxy_rejected request_id={} client_id=anonymous route={} reason=missing_api_key result=error",
+                request_id,
+                body.route
+            );
 
         let client = match validate_api_key(&clients, &api_key) {
             Some(client) => client,
@@ -76,6 +91,20 @@ pub async fn proxy(
                     .to_response(Some(request_id));
             }
         };
+        log::warn!(
+                    "proxy_rejected request_id={} client_id=unknown route={} reason=invalid_api_key result=error",
+                    request_id,
+                    body.route
+                );
+        client_id = client.client_id.clone();
+
+        log::warn!(
+            "proxy_rejected request_id={} client_id={} route={} reason=forbidden required_scopes={:?} result=error",
+            request_id,
+            client_id,
+            route.route,
+            route.required_scopes
+        );
 
         if !has_required_scopes(client, &route.required_scopes) {
             return AppError::Forbidden("Client does not have required scope".to_string())
@@ -120,14 +149,24 @@ pub async fn proxy(
 
             let latency_ms = start.elapsed().as_millis();
 
+            let result = if (200..400).contains(&status) {
+                "success"    
+            } else {
+                "upstream_error_status"
+            };
+
             log::info!(
-                "proxy_success gateway_request_id={} upstream_request_id={} route={} service={} status={} latency_ms={}",
+                "proxy_completed request_id={} upstream_request_id={} client_id={} route={} method={} service={} target_url={} upstream_status={} latency_ms={} result={}",
                 request_id,
-                mcpone_request_id.clone().unwrap_or_else(|| request_id.clone()),
+                upstream_request_id,
+                client_id,
                 route.route,
+                route.method,
                 route.service_name,
+                route.target_url,
                 status,
-                latency_ms
+                latency_ms,
+                result
             );   
 
             HttpResponse::Ok()
@@ -140,10 +179,32 @@ pub async fn proxy(
             })
         }
         Err(err) if err.is_timeout() => {
+            log::warn!(
+               "proxy_failed request_id={} upstream_request_id={} client_id={} route={} method={} service={} target_url={} latency_ms={} result=upstream_timeout",
+                request_id,
+                upstream_request_id,
+                client_id,
+                route.route,
+                route.method,
+                route.service_name,
+                route.target_url,
+                start.elapsed().as_millis()
+            );
             AppError::UpstreamTimeout(format!("Timeout calling {}", route.service_name))
                 .to_response(Some(request_id))
         }
         Err(_) => {
+            log::warn!(
+                "proxy_failed request_id={} upstream_request_id={} client_id={} route={} method={} service={} target_url={} latency_ms={} result=upstream_error",
+                request_id,
+                upstream_request_id,
+                client_id,
+                route.route,
+                route.method,
+                route.service_name,
+                route.target_url,
+                start.elapsed().as_millis()
+            );
             AppError::UpstreamError(format!("Failed calling {}", route.service_name))
                 .to_response(Some(request_id))
         }

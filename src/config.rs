@@ -5,6 +5,7 @@ use crate::models::{ApiClient, RouteConfig};
 #[derive(Debug, Clone)]
 pub struct Config {
     pub host: String,
+    pub env: String,
     pub port: u16,
     pub app_name: String,
     pub version: String,
@@ -28,6 +29,7 @@ impl Config {
                 .unwrap_or(8080),
             app_name: "evi-gate".to_string(),
             version: "0.1.0".to_string(),
+            env: env::var("APP_ENV").unwrap_or_else(|_| "local".to_string()),
             mcpone_health_path: env::var("MCPONE_HEALTH_PATH")
                 .unwrap_or_else(|_| "/health".to_string()),
             mcpone_meta_path: env::var("MCPONE_META_PATH")
