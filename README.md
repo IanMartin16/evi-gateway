@@ -306,7 +306,7 @@ docker run --rm -p 8080:8080 ^
 
 ## Swagger / OpenAPI
 
-## OpenAPI JSON:
+OpenAPI JSON:
 
 /api-docs/openapi.json
 
@@ -407,7 +407,7 @@ proxy_failed request_id=test-logs-upstream-error-001 upstream_request_id=test-lo
 
 ## Roadmap
 
-## Near-term:
+### Near-term:
 
 [ ] Add route groups / route metadata
 [ ] Add JSON structured logs
@@ -417,7 +417,7 @@ proxy_failed request_id=test-logs-upstream-error-001 upstream_request_id=test-lo
 [ ] Add upstream health by route group
 [ ] Add integration tests
 
-## Future:
+### Future:
 
 [ ] SSC event stream integration
 [ ] Policy-based routing
@@ -426,7 +426,7 @@ proxy_failed request_id=test-logs-upstream-error-001 upstream_request_id=test-lo
 [ ] Audit event persistence
 --- 
 
-## Design principle
+### Design principle
 
 evi-gateway should remain small, strict and observable.
 
