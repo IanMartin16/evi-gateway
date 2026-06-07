@@ -75,7 +75,7 @@ evi-gateway is responsible for:
 
 ## Architecture
 
-## Client / Nexus
+### Client / Nexus
      ↓
 POST /api/proxy
      ↓
@@ -90,7 +90,7 @@ Controlled upstream request
 MCPOne / Internal service
      ↓
 Wrapped gateway response
---- 
+
 
 ## Endpoints
 
@@ -315,9 +315,9 @@ Swagger UI:
 /swagger-ui/
 --- 
 
-## Error model
+### Error model
 
-## Gateway-level errors use a standardized response shape:
+### Gateway-level errors use a standardized response shape:
 ``` json
 {
   "status": 401,
@@ -326,7 +326,7 @@ Swagger UI:
   "request_id": "test-id"
 }
 ```
-## Common error codes:
+### Common error codes:
 
 UNAUTHORIZED
 FORBIDDEN
@@ -337,11 +337,11 @@ BAD_REQUEST
 INTERNAL_ERROR
 --- 
 
-## Upstream status propagation
+### Upstream status propagation
 
-## When an upstream responds, evi-gateway propagates the upstream HTTP status code.
+### When an upstream responds, evi-gateway propagates the upstream HTTP status code.
 
-## Example:
+### Example:
 
 MCPOne returns 200 → evi-gateway returns HTTP 200
 MCPOne returns 404 → evi-gateway returns HTTP 404
@@ -363,30 +363,29 @@ The response body still keeps the gateway wrapper:
 
 ## Structured proxy logs
 
-## evi-gateway emits structured logs for proxy operations.
+### evi-gateway emits structured logs for proxy operations.
 
-## Event types:
+### Event types:
 
 proxy_rejected
 proxy_completed
 proxy_failed
 
-## Example success log:
+### Example success log:
 
 proxy_completed request_id=test-logs-success-001 upstream_request_id=test-logs-success-001 client_id=nexus route=mcpone.execute method=POST service=mcpone target_url=http://localhost:8000/orchestrate upstream_status=200 latency_ms=617 result=success
 ---
-## Example rejected log:
+### Example rejected log:
 
 proxy_rejected request_id=test-logs-invalid-key-001 client_id=unknown route=mcpone.execute reason=invalid_api_key result=error
 ---
-## Example upstream failure log:
+### Example upstream failure log:
 
 proxy_failed request_id=test-logs-upstream-error-001 upstream_request_id=test-logs-upstream-error-001 client_id=nexus route=mcpone.execute method=POST service=mcpone target_url=http://localhost:8000/orchestrate latency_ms=2326 result=upstream_error
 --- 
 ## These logs are designed to become future signals for Status-Hub, IO Module and SSC.
 
-
-## Current validated checks
+### Current validated checks
 
 [done] Rust base compiles locally
 [done] Docker build works
