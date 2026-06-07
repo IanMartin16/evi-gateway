@@ -75,7 +75,7 @@ evi-gateway is responsible for:
 
 ## Architecture
 
-### Client / Nexus
+ Client / Nexus
      ↓
 POST /api/proxy
      ↓
@@ -90,7 +90,7 @@ Controlled upstream request
 MCPOne / Internal service
      ↓
 Wrapped gateway response
-
+---
 
 ## Endpoints
 
