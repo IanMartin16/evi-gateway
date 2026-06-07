@@ -169,7 +169,10 @@ pub async fn proxy(
                 result
             );   
 
-            HttpResponse::Ok()
+            let response_status = actix_web::http::StatusCode::from_u16(status)
+                .unwrap_or(actix_web::http::StatusCode::BAD_GATEWAY);
+
+            HttpResponse::build(response_status)
             .insert_header(("X-Request-ID", request_id.clone()))
             .json(ProxyResponse {
                 request_id,
