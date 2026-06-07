@@ -73,7 +73,7 @@ evi-gateway is responsible for:
 * managing billing or tenant lifecycle
 --- 
 
-## Architecture
+### Architecture
 
  Client / Nexus
      ↓
@@ -90,7 +90,7 @@ Controlled upstream request
 MCPOne / Internal service
      ↓
 Wrapped gateway response
----
+
 
 ## Endpoints
 
