@@ -74,7 +74,7 @@ impl Config {
             },
             RouteConfig {
                 service_name: "mcpone".to_string(),
-                route: "mcpone.reason_codes".to_string(),
+                route: "mcpone.meta.reason_codes".to_string(),
                 method: "GET".to_string(),
                 target_url: format!("{}/meta/reason-codes", base_url),
                 required_scopes: vec!["mcpone.meta.read".to_string()],
@@ -83,7 +83,7 @@ impl Config {
             },
             RouteConfig {
                 service_name: "mcpone".to_string(),
-                route: "mcpone.recent_resolutions".to_string(),
+                route: "mcpone.meta.recent_resolutions".to_string(),
                 method: "GET".to_string(),
                 target_url: format!("{}/meta/recent-resolutions", base_url),
                 required_scopes: vec!["mcpone.meta.read".to_string()],
@@ -110,7 +110,7 @@ impl Config {
             },
             RouteConfig {
                 service_name: "mcpone".to_string(),
-                route: "mcpone.registry".to_string(),
+                route: "mcpone.registry.modules".to_string(),
                 method: "GET".to_string(), 
                 target_url: format!("{}{}", base_url, self.mcpone_registry_path),
                 required_scopes: vec!["mcpone.registry.read".to_string()],
@@ -119,7 +119,7 @@ impl Config {
             },
             RouteConfig {
                 service_name: "mcpone".to_string(),
-                route: "mcpone.providers".to_string(),
+                route: "mcpone.providers.active".to_string(),
                 method: "GET".to_string(), 
                 target_url: format!("{}{}", base_url, self.mcpone_providers_path),
                 required_scopes: vec!["mcpone.providers.read".to_string()],
