@@ -19,3 +19,6 @@ ENV PORT=8080
 EXPOSE 8080
 
 CMD ["./evi-gate"]
+
+RUN apt-get update && \
+    apt-get install -y openssl libssl3
