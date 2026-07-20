@@ -11,6 +11,10 @@ FROM debian:bookworm-slim
 
 WORKDIR /app
 
+RUN apt-get update && \
+    apt-get install -y openssl libssl3 ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/target/release/evi-gate /app/evi-gate
 
 ENV HOST=0.0.0.0
@@ -19,6 +23,3 @@ ENV PORT=8080
 EXPOSE 8080
 
 CMD ["./evi-gate"]
-
-RUN apt-get update && \
-    apt-get install -y openssl libssl3
