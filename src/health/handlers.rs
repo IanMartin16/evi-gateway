@@ -9,22 +9,22 @@ use utoipa::ToSchema;
 
 use crate::config::Config;
 
+
 static STARTED_AT: OnceLock<Instant> = OnceLock::new();
 
-pub fn initialize_uptime() {
-    let _ = STARTED_AT.set(Instant::now());
-}
 
 fn uptime_seconds() -> u64 {
     STARTED_AT
-        .get()
-        .map(|start_at| start_at.elapsed().as_secs())
-        .unwrap_or(0)
+        .get_or_init(Instant::now)
+        .elapsed()
+        .as_secs()
 }
+
 
 fn current_timestamp() -> String {
     chrono::Utc::now().to_rfc3339()
 }
+
 
 #[derive(Serialize, ToSchema)]
 pub struct ServiceInfo {
@@ -35,6 +35,7 @@ pub struct ServiceInfo {
     pub stack: String,
 }
 
+
 #[derive(Serialize, ToSchema)]
 pub struct HealthCheck {
     pub status: String,
@@ -42,6 +43,7 @@ pub struct HealthCheck {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
+
 
 #[derive(Serialize, ToSchema)]
 pub struct HealthResponse {
@@ -54,6 +56,7 @@ pub struct HealthResponse {
     pub checks: BTreeMap<String, HealthCheck>,
 }
 
+
 #[derive(Serialize, ToSchema)]
 pub struct LiveResponse {
     pub contract_version: String,
@@ -61,6 +64,7 @@ pub struct LiveResponse {
     pub status: String,
     pub timestamp: String,
 }
+
 
 #[derive(Serialize, ToSchema)]
 pub struct ReadyResponse {
@@ -71,10 +75,12 @@ pub struct ReadyResponse {
     pub checks: BTreeMap<String, HealthCheck>,
 }
 
+
 struct GatewayEvaluation {
     ready: bool,
     checks: BTreeMap<String, HealthCheck>,
 }
+
 
 fn operational() -> HealthCheck {
     HealthCheck {
@@ -83,6 +89,7 @@ fn operational() -> HealthCheck {
     }
 }
 
+
 fn degraded(message: impl Into<String>) -> HealthCheck {
     HealthCheck {
         status: "degraded".to_string(),
@@ -90,13 +97,24 @@ fn degraded(message: impl Into<String>) -> HealthCheck {
     }
 }
 
+
 fn evaluate_gateway(config: &Config) -> GatewayEvaluation {
-    let routes_ready = !config.registered_routes().is_empty();
+    let routes_registered = config.registered_routes().len();
+
+    let routes_ready = routes_registered > 0;
+
+    // Solo valida la configuración local.
+    // No realiza ninguna llamada de red.
     let upstream_url_valid = reqwest::Url::parse(&config.mcpone_url).is_ok();
+
+    let proxy_ready = routes_ready && upstream_url_valid;
 
     let mut checks = BTreeMap::new();
 
-    checks.insert("application".to_string(), operational());
+    checks.insert(
+        "application".to_string(),
+        operational(),
+    );
 
     checks.insert(
         "configuration".to_string(),
@@ -118,7 +136,7 @@ fn evaluate_gateway(config: &Config) -> GatewayEvaluation {
 
     checks.insert(
         "proxy".to_string(),
-        if routes_ready && upstream_url_valid {
+        if proxy_ready {
             operational()
         } else {
             degraded("Gateway proxy is not ready")
@@ -126,10 +144,11 @@ fn evaluate_gateway(config: &Config) -> GatewayEvaluation {
     );
 
     GatewayEvaluation {
-        ready: routes_ready && upstream_url_valid,
+        ready: routes_ready && upstream_url_valid && proxy_ready,
         checks,
     }
 }
+
 
 #[utoipa::path(
     get,
@@ -137,14 +156,16 @@ fn evaluate_gateway(config: &Config) -> GatewayEvaluation {
     responses(
         (
             status = 200,
-            description = "Gateway health.v1 status",
+            description = "Gateway health status",
             body = HealthResponse
         )
     ),
     tag = "evi-gateway"
 )]
 #[get("/health")]
-pub async fn health_check(config: web::Data<Config>) -> impl Responder {
+pub async fn health_check(
+    config: web::Data<Config>,
+) -> impl Responder {
     let evaluation = evaluate_gateway(config.get_ref());
 
     HttpResponse::Ok().json(HealthResponse {
@@ -176,6 +197,7 @@ pub async fn health_check(config: web::Data<Config>) -> impl Responder {
     })
 }
 
+
 #[utoipa::path(
     get,
     path = "/api/health/live",
@@ -189,7 +211,9 @@ pub async fn health_check(config: web::Data<Config>) -> impl Responder {
     tag = "evi-gateway"
 )]
 #[get("/health/live")]
-pub async fn health_live(config: web::Data<Config>) -> impl Responder {
+pub async fn health_live(
+    config: web::Data<Config>,
+) -> impl Responder {
     HttpResponse::Ok().json(LiveResponse {
         contract_version: "health.v1".to_string(),
         service_id: config.app_id.clone(),
@@ -197,6 +221,7 @@ pub async fn health_live(config: web::Data<Config>) -> impl Responder {
         timestamp: current_timestamp(),
     })
 }
+
 
 #[utoipa::path(
     get,
@@ -216,7 +241,9 @@ pub async fn health_live(config: web::Data<Config>) -> impl Responder {
     tag = "evi-gateway"
 )]
 #[get("/health/ready")]
-pub async fn health_ready(config: web::Data<Config>) -> impl Responder {
+pub async fn health_ready(
+    config: web::Data<Config>,
+) -> impl Responder {
     let evaluation = evaluate_gateway(config.get_ref());
 
     let readiness_checks = evaluation
@@ -246,8 +273,10 @@ pub async fn health_ready(config: web::Data<Config>) -> impl Responder {
     }
 }
 
+
 pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(health_check)
+    cfg
+        .service(health_check)
         .service(health_live)
         .service(health_ready);
 }

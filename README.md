@@ -1,10 +1,10 @@
 # evi-gateway
 
-## evi-gateway is the Rust-based validation, routing and observability gateway for the Evilink ecosystem.
+evi-gateway is the Rust-based validation, routing and observability gateway for the Evilink ecosystem.
 
-## It acts as a controlled entry layer between Nexus, MCPOne, internal APIs, MCP-compatible services and future IO/SSC components.
+It acts as a controlled entry layer between Nexus, MCPOne, internal APIs, MCP-compatible services and future IO/SSC components.
 
-## The goal of evi-gateway is not to replace MCPOne or become the orchestration brain. Its role is to validate, route, trace and protect internal service calls.
+The goal of evi-gateway is not to replace MCPOne or become the orchestration brain. Its role is to validate, route, trace and protect internal service calls.
 
 ## Nexus
   ↓
@@ -17,7 +17,7 @@ Providers / MCPs / APIs / Internal Services
 
 ## Current status
 
-## evi-gateway is currently in an early operational stage.
+evi-gateway is currently in an early operational stage.
 
 ## Validated capabilities:
 
@@ -38,9 +38,9 @@ Providers / MCPs / APIs / Internal Services
 
 ## Role inside Evilink
 
-## evi-gateway is part of the IO-oriented evolution of Evilink.
+evi-gateway is part of the IO-oriented evolution of Evilink.
 
-## Its purpose is to provide a safe and observable gateway layer before requests reach MCPOne or other internal services.
+Its purpose is to provide a safe and observable gateway layer before requests reach MCPOne or other internal services.
 
 Nexus conversa.
 evi-gateway valida y enruta.
@@ -74,7 +74,7 @@ evi-gateway is responsible for:
 --- 
 
 ### Architecture
-
+---
  Client / Nexus
      ↓
 POST /api/proxy
@@ -90,7 +90,7 @@ Controlled upstream request
 MCPOne / Internal service
      ↓
 Wrapped gateway response
-
+---
 
 ## Endpoints
 

@@ -7,8 +7,12 @@ pub struct Config {
     pub host: String,
     pub env: String,
     pub port: u16,
+
+    pub app_id: String,
     pub app_name: String,
     pub version: String,
+    pub stack: String,
+
     pub mcpone_url: String,
     pub default_timeout_ms: u64,
     pub api_keys_raw: String,
@@ -27,8 +31,12 @@ impl Config {
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()
                 .unwrap_or(8080),
-            app_name: "evi-gate".to_string(),
-            version: "0.1.0".to_string(),
+                
+            app_id: env::var("APP_ID").unwrap_or_else(|_| "evi-gate".to_string()),    
+            app_name: env::var("APP_NAME").unwrap_or_else(|_| "evi-gate".to_string()),
+            version: env::var("APP_VERSION").unwrap_or_else(|_| env!("CARGO_PKG_VERSION").to_string()),
+            stack: "rust-actix".to_string(),
+
             env: env::var("APP_ENV").unwrap_or_else(|_| "local".to_string()),
             mcpone_health_path: env::var("MCPONE_HEALTH_PATH")
                 .unwrap_or_else(|_| "/health".to_string()),
@@ -140,6 +148,7 @@ impl Config {
     pub fn api_clients(&self) -> Vec<ApiClient> {
         parse_api_clients(&self.api_keys_raw)
     }
+    
 }
 
 fn parse_api_clients(raw: &str) -> Vec<ApiClient> {

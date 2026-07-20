@@ -14,11 +14,17 @@ mod routes;
 #[openapi(
     paths(
         handlers::health::health_check,
+        handlers::health::health_live,
+        handlers::health::health_ready,
         handlers::gateway::get_routes,
         handlers::gateway::proxy
     ),
     components(schemas(
+        handlers::health::ServiceInfo,
+        handlers::health::HealthCheck,
         handlers::health::HealthResponse,
+        handlers::health::LiveResponse,
+        handlers::health::ReadyResponse,
         models::RouteConfig,
         models::ApiClient,
         models::ProxyRequest,
@@ -34,6 +40,8 @@ mod routes;
 )]
 struct ApiDoc;
 
+
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
@@ -41,6 +49,7 @@ async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     let app_config = config::Config::from_env();
+    handlers::health::initialize_uptime();
     let bind_addr = format!("{}:{}", app_config.host, app_config.port);
 
     log::info!("Starting evi-gateway on {}", bind_addr);
