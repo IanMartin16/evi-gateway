@@ -3,12 +3,14 @@ use actix_web::{http::header, middleware::Logger, web, App, HttpServer};
 use dotenv::dotenv;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+use intake_emitter::{DataClass, EmitterConfig, IntakeEmitter, TelemetryEvent};
 
 mod config;
 mod errors;
 mod handlers;
 mod models;
 mod routes;
+mod intake_emitter;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -51,6 +53,7 @@ async fn main() -> std::io::Result<()> {
     let app_config = config::Config::from_env();
     handlers::health::initialize_uptime();
     let bind_addr = format!("{}:{}", app_config.host, app_config.port);
+    let emitter = IntakeEmitter::start(EmitterConfig::from_env());
 
     log::info!("Starting evi-gateway on {}", bind_addr);
     log::info!("Swagger UI available at http://{}/swagger-ui/", bind_addr);
@@ -73,6 +76,7 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .app_data(web::Data::new(app_config.clone()))
+            .app_data(web::Data::new(emitter.clone()))
             .wrap(Logger::default())
             .wrap(cors)
             .service(

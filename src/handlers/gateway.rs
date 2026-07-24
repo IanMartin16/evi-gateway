@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::config::Config;
 use crate::errors::AppError;
+use crate::intake_emitter::{DataClass, IntakeEmitter, TelemetryEvent};
 use crate::models::{ApiClient, ProxyRequest, ProxyResponse, RouteConfig, RoutesResponse};
 
 #[utoipa::path(
@@ -41,6 +42,7 @@ pub async fn get_routes(config: web::Data<Config>) -> impl Responder {
 #[post("/proxy")]
 pub async fn proxy(
     req: HttpRequest,
+    emitter: web::Data<IntakeEmitter>,
     body: web::Json<ProxyRequest>,
     config: web::Data<Config>,
 ) -> HttpResponse {
@@ -65,6 +67,18 @@ pub async fn proxy(
                 client_id,
                 body.route
             );
+            // [TELEMETRÍA 1/9] ruta no registrada
+            // Señal valiosa: qué rutas piden los clientes que no existen.
+            emit_proxy(
+                &emitter,
+                &request_id,
+                &body.route,
+                &client_id,
+                None,
+                404,
+                "route_not_found",
+                start,
+            );
             return AppError::RouteNotFound(format!("Route not registered: {}", body.route))
                 .to_response(Some(request_id));
         }
@@ -74,39 +88,69 @@ pub async fn proxy(
         let api_key = match extract_api_key(&req) {
             Some(key) => key,
             None => {
+                log::warn!(
+                    "proxy_rejected request_id={} client_id=anonymous route={} reason=missing_api_key result=error",
+                    request_id,
+                    route.route
+                );
+                emit_proxy(
+                    &emitter,
+                    &request_id,
+                    &route.route,
+                    &client_id,
+                    Some(&route.service_name),
+                    401,
+                    "missing_api_key",
+                    start,
+                );
                 return AppError::Unauthorized("Missing X-API-Key header".to_string())
                     .to_response(Some(request_id));
             }
         };
-        log::warn!(
-                "proxy_rejected request_id={} client_id=anonymous route={} reason=missing_api_key result=error",
-                request_id,
-                body.route
-            );
 
         let client = match validate_api_key(&clients, &api_key) {
             Some(client) => client,
             None => {
+                log::warn!(
+                    "proxy_rejected request_id={} client_id=unknown route={} reason=invalid_api_key result=error",
+                    request_id,
+                    route.route
+                );
+                emit_proxy(
+                    &emitter,
+                    &request_id,
+                    &route.route,
+                    &client_id,
+                    Some(&route.service_name),
+                    401,
+                    "invalid_api_key",
+                    start,
+                );
                 return AppError::Unauthorized("Invalid API key".to_string())
                     .to_response(Some(request_id));
             }
         };
-        log::warn!(
-                    "proxy_rejected request_id={} client_id=unknown route={} reason=invalid_api_key result=error",
-                    request_id,
-                    body.route
-                );
+
         client_id = client.client_id.clone();
 
-        log::warn!(
-            "proxy_rejected request_id={} client_id={} route={} reason=forbidden required_scopes={:?} result=error",
-            request_id,
-            client_id,
-            route.route,
-            route.required_scopes
-        );
-
         if !has_required_scopes(client, &route.required_scopes) {
+            log::warn!(
+                "proxy_rejected request_id={} client_id={} route={} reason=forbidden required_scopes={:?} result=error",
+                request_id,
+                client_id,
+                route.route,
+                route.required_scopes
+            );
+            emit_proxy(
+                &emitter,
+                &request_id,
+                &route.route,
+                &client_id,
+                Some(&route.service_name),
+                403,
+                "forbidden",
+                start,
+            );
             return AppError::Forbidden("Client does not have required scope".to_string())
                 .to_response(Some(request_id));
         }
@@ -119,6 +163,17 @@ pub async fn proxy(
     let http_client = match http_client {
         Ok(client) => client,
         Err(_) => {
+            // [TELEMETRÍA 5/9] fallo construyendo el cliente HTTP
+            emit_proxy(
+                &emitter,
+                &request_id,
+                &route.route,
+                &client_id,
+                Some(&route.service_name),
+                500,
+                "client_build_error",
+                start,
+            );
             return AppError::Internal("Failed to create HTTP client".to_string())
                 .to_response(Some(request_id));
         }
@@ -128,6 +183,17 @@ pub async fn proxy(
         "GET" => http_client.get(&route.target_url),
         "POST" => http_client.post(&route.target_url).json(&upstream_payload),
         _ => {
+            // [TELEMETRÍA 6/9] método no soportado en la config de la ruta
+            emit_proxy(
+                &emitter,
+                &request_id,
+                &route.route,
+                &client_id,
+                Some(&route.service_name),
+                400,
+                "unsupported_method",
+                start,
+            );
             return AppError::BadRequest(format!("Unsopported method: {}", route.method))
                 .to_response(Some(request_id));
         }
@@ -150,7 +216,7 @@ pub async fn proxy(
             let latency_ms = start.elapsed().as_millis();
 
             let result = if (200..400).contains(&status) {
-                "success"    
+                "success"
             } else {
                 "upstream_error_status"
             };
@@ -167,19 +233,31 @@ pub async fn proxy(
                 status,
                 latency_ms,
                 result
-            );   
+            );
+
+            // [TELEMETRÍA 7/9] respuesta del upstream (éxito o status de error)
+            emit_proxy(
+                &emitter,
+                &request_id,
+                &route.route,
+                &client_id,
+                Some(&route.service_name),
+                status,
+                result,
+                start,
+            );
 
             let response_status = actix_web::http::StatusCode::from_u16(status)
                 .unwrap_or(actix_web::http::StatusCode::BAD_GATEWAY);
 
             HttpResponse::build(response_status)
-            .insert_header(("X-Request-ID", request_id.clone()))
-            .json(ProxyResponse {
-                request_id,
-                route: route.route.clone(),
-                status,
-                data,
-            })
+                .insert_header(("X-Request-ID", request_id.clone()))
+                .json(ProxyResponse {
+                    request_id,
+                    route: route.route.clone(),
+                    status,
+                    data,
+                })
         }
         Err(err) if err.is_timeout() => {
             log::warn!(
@@ -192,6 +270,17 @@ pub async fn proxy(
                 route.service_name,
                 route.target_url,
                 start.elapsed().as_millis()
+            );
+            // [TELEMETRÍA 8/9] timeout del upstream
+            emit_proxy(
+                &emitter,
+                &request_id,
+                &route.route,
+                &client_id,
+                Some(&route.service_name),
+                504,
+                "upstream_timeout",
+                start,
             );
             AppError::UpstreamTimeout(format!("Timeout calling {}", route.service_name))
                 .to_response(Some(request_id))
@@ -208,11 +297,67 @@ pub async fn proxy(
                 route.target_url,
                 start.elapsed().as_millis()
             );
+            // [TELEMETRÍA 9/9] error de red hacia el upstream
+            emit_proxy(
+                &emitter,
+                &request_id,
+                &route.route,
+                &client_id,
+                Some(&route.service_name),
+                502,
+                "upstream_error",
+                start,
+            );
             AppError::UpstreamError(format!("Failed calling {}", route.service_name))
                 .to_response(Some(request_id))
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Telemetría
+// ---------------------------------------------------------------------------
+
+/// Emite un evento de proxy hacia evi-intake.
+///
+/// No bloquea, no es async y no puede fallar hacia el llamador: internamente
+/// hace `try_send` a un canal acotado. Si evi-intake está caído, el gateway
+/// opera igual y sólo se incrementa el contador de descartes.
+///
+/// Se llama ANTES de cada `return` para que `request_id` siga prestado y no
+/// haya conflicto con el move que hace `to_response(Some(request_id))`.
+///
+/// Los campos del payload deben coincidir con el `allow` de `evi-gateway` en
+/// la política de redacción de evi-intake, o se descartan en silencio.
+#[allow(clippy::too_many_arguments)]
+fn emit_proxy(
+    emitter: &IntakeEmitter,
+    request_id: &str,
+    route: &str,
+    client_id: &str,
+    target_service: Option<&str>,
+    status: u16,
+    outcome: &str,
+    started: Instant,
+) {
+    emitter.emit(TelemetryEvent::new(
+        DataClass::Event,
+        request_id,
+        json!({
+            "route":          route,
+            "method":         "POST",
+            "status_code":    status,
+            "latency_ms":     started.elapsed().as_millis() as u64,
+            "client_id":      client_id,
+            "target_service": target_service,
+            "outcome":        outcome,
+        }),
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// Helpers existentes (sin cambios)
+// ---------------------------------------------------------------------------
 
 fn find_route<'a>(routes: &'a [RouteConfig], route_name: &str) -> Option<&'a RouteConfig> {
     routes.iter().find(|route| route.route == route_name)
@@ -255,10 +400,7 @@ fn extract_payload_request_id(payload: &serde_json::Value) -> Option<String> {
         .map(|value| value.to_string())
 }
 
-fn ensure_payload_request_id(
-    payload: &serde_json::Value,
-    request_id: &str,
-) -> serde_json::Value {
+fn ensure_payload_request_id(payload: &serde_json::Value, request_id: &str) -> serde_json::Value {
     let mut enriched_payload = payload.clone();
 
     if enriched_payload.get("request_id").is_none() {
